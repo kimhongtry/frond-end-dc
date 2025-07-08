@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router";
 import AuthLayout from "./components/auth-screen/login";
 import LoginForm from "./components/auth-screen/login";
+import RegisterForm from "./components/auth-screen/register";
 import DashboardLayout from "./components/Layout/dashboard-layout";
 import Dashboard from "./screens/dashboard";
 import { useAuthStore } from "@/store/auth-store";
@@ -20,6 +21,7 @@ function App() {
         {/* Auth Route */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginForm />} />
+          <Route path="/register" element={<RegisterForm />} />
         </Route>
 
         {/* Dashboard route */}

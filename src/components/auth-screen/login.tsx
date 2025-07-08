@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 
 import { useAuthStore } from "@/store/auth-store";
 import { authRequest } from "@/lib/api/auth-api";
@@ -136,7 +136,10 @@ const LoginForm = () => {
 
         <div className="text-center text-sm text-gray-600">
           Don’t have an account?{" "}
-          <button className="text-blue-600 hover:underline font-medium">
+          <button
+            onClick={() => navigate("/register")}
+            className="text-blue-600 hover:underline font-medium"
+          >
             Sign up
           </button>
         </div>

@@ -242,36 +242,30 @@ const UsersTable = () => {
       header: "Action",
       enableHiding: false,
       cell: ({ row }) => {
-        // const user = row.original;
+        const user = row.original;
+
         return (
           <div className="flex space-x-1.5 items-center">
-            <Badge>
-              <Pen />
+            <Badge className="cursor-pointer">
+              <Pen className="w-4 h-4 mr-1" />
               Edit
             </Badge>
-            <Badge variant="destructive">
-              <Trash /> Delete
+            <Badge
+              variant="destructive"
+              className="cursor-pointer"
+              onClick={() => {
+                const confirmDelete = confirm(
+                  `Are you sure you want to delete ${user.full_name}?`
+                );
+                if (confirmDelete) {
+                  deleteUser(user.id);
+                }
+              }}
+            >
+              <Trash className="w-4 h-4 mr-1" />
+              Delete
             </Badge>
           </div>
-          //   <DropdownMenu>
-          //     <DropdownMenuTrigger asChild>
-          //       <Button variant="ghost" className="h-8 w-8 p-0">
-          //         <span className="sr-only">Open menu</span>
-          //         <MoreHorizontal />
-          //       </Button>
-          //     </DropdownMenuTrigger>
-          //     <DropdownMenuContent align="end">
-          //       <DropdownMenuLabel>Actions</DropdownMenuLabel>
-          //       <DropdownMenuItem
-          //         onClick={() => navigator.clipboard.writeText(user.id)}
-          //       >
-          //         Copy user ID
-          //       </DropdownMenuItem>
-          //       <DropdownMenuSeparator />
-          //       <DropdownMenuItem>View user details</DropdownMenuItem>
-          //       <DropdownMenuItem>Edit user</DropdownMenuItem>
-          //     </DropdownMenuContent>
-          //   </DropdownMenu>
         );
       },
     },
