@@ -62,3 +62,10 @@ export interface IUserResponse {
     limit: number;
   };
 }
+// (your existing code here)
+
+export interface IUserUpdate {
+  full_name: string;
+  user_name: string;
+  email: string;
+}
