@@ -19,7 +19,7 @@ export const requestCard = () => {
     title,
     email,
   }: CardQueryParams): Promise<ICardResponse> => {
-    let url = `/card/get-cards-by-admin?page=${page}&limit=${pageSize}s&sortOrder=${sortOrder}&is_deleted=${is_deleted}`;
+    let url = `/card/get-cards-by-admin?page=${page}&limit=${pageSize}&sortOrder=${sortOrder}&is_deleted=${is_deleted}`;
 
     if (title) {
       url += `&title=${encodeURIComponent(title)}`;
@@ -42,19 +42,31 @@ export const requestCard = () => {
   };
 
   const UPDATE_CARD = async (id: string, status: boolean) => {
-    return await request({
-      url: `/card/update-card/${id}`,
-      method: "PUT",
-      data: { is_active: status },
-    });
+    try {
+      return await request({
+        url: `/card/update-card/${id}`,
+        method: "PUT",
+        data: { is_active: status },
+      });
+    } catch (error) {
+      console.error("Failed to update card:", error);
+      throw error;
+    }
   };
-
   const DELETE_CARD = async (id: string) => {
-    return await request({
-      url: `/api/v1/card/delete-card-by-admin/${id}`,
-      method: "DELETE",
-    });
+    try {
+      return await request({
+        url: `/card/delete-card-by-admin/${id}`, // not /api/v1/...
+        method: "DELETE",
+      });
+    } catch (error) {
+      console.error("Failed to delete card:", error);
+      throw error;
+    }
   };
-
-  return { GET_CARDS, UPDATE_CARD, DELETE_CARD };
+  return {
+    GET_CARDS,
+    UPDATE_CARD,
+    DELETE_CARD,
+  };
 };
