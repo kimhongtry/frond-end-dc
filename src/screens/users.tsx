@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { requestUser } from "@/lib/api/user-api";
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { ArrowUpDown, ChevronDown, Pen, Trash } from "lucide-react";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import type { IUser } from "@/types/user-type";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Pagination } from "@/lib/pagination";
@@ -35,7 +36,7 @@ import timezone from "dayjs/plugin/timezone";
 import { Badge } from "@/components/ui/badge";
 import { useUserStatusDialog } from "@/store/user-status-dialog-store";
 import UserStatusAlertDialog from "@/components/user-status-dialong";
-import { requestUser } from "@/lib/api/user-api";
+import request from "@/lib/api/request";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -44,16 +45,44 @@ const UsersTable = () => {
   const queryClient = useQueryClient();
   const { USERS, UPDATE_USER, DELETE_USER } = requestUser();
 
-  const { mutate: updateUserStatus, isPending: isUpdating } = useMutation({
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<IUser | null>(null);
+
+  const { mutate: updateUserStatus } = useMutation({
     mutationFn: ({ id, status }: { id: string; status: boolean }) =>
       UPDATE_USER(id, status),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
   });
 
   const { mutate: deleteUser } = useMutation({
     mutationFn: (id: string) => DELETE_USER(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["users"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
   });
+
+  const { mutate: updateUserData } = useMutation({
+    mutationFn: (user: IUser) =>
+      request({
+        url: `/user/update-user/${user.id}`,
+        method: "PUT",
+        data: {
+          full_name: user.full_name,
+          user_name: user.user_name,
+          email: user.email,
+        },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setIsEditOpen(false);
+    },
+  });
+
+  const handleUpdateUser = (user: IUser) => {
+    updateUserData(user);
+  };
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -123,7 +152,7 @@ const UsersTable = () => {
         return (
           <img
             src={avatar || fallback}
-            alt="User avatar"
+            alt="avatar"
             className="h-10 w-10 rounded-full object-cover"
           />
         );
@@ -131,55 +160,53 @@ const UsersTable = () => {
     },
     {
       accessorKey: "full_name",
-      header: ({ column }) => (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "desc")}
-        >
-          Fullname <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
+      header: "Fullname",
       cell: ({ row }) => (
         <div className="capitalize">{row.getValue("full_name")}</div>
       ),
     },
     {
       accessorKey: "user_name",
-      header: ({ column }) => (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "desc")}
-        >
-          Username <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
+      header: "Username",
       cell: ({ row }) => (
         <div className="capitalize">{row.getValue("user_name")}</div>
       ),
     },
     {
       accessorKey: "email",
-      header: ({ column }) => (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "desc")}
-        >
-          Email <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
+      header: "Email",
       cell: ({ row }) => (
         <div className="lowercase">{row.getValue("email")}</div>
       ),
     },
     {
+      accessorKey: "is_active",
+      header: () => <div>Status</div>,
+      cell: ({ row }) => {
+        const user = row.original;
+        const isActive = user.is_active;
+        return (
+          <Badge
+            variant={isActive ? "default" : "destructive"}
+            className="cursor-pointer hover:opacity-80"
+            onClick={() =>
+              useUserStatusDialog.getState().setDialog(user.id, isActive)
+            }
+          >
+            {isActive ? "Active" : "Blocked"}
+          </Badge>
+        );
+      },
+    },
+    {
       accessorKey: "created_at",
       header: () => <>Created At</>,
       cell: ({ row }) => {
-        const raw = row.getValue("created_at") as string;
-        const formatted = dayjs(raw)
+        const rawDate = row.getValue("created_at") as string;
+        const fixedTime = dayjs(rawDate)
           .add(7, "hour")
           .format("YYYY-MM-DD hh:mm A");
-        return <div className="text-sm text-muted-foreground">{formatted}</div>;
+        return <div className="text-sm text-muted-foreground">{fixedTime}</div>;
       },
     },
     {
@@ -187,43 +214,27 @@ const UsersTable = () => {
       header: "Action",
       cell: ({ row }) => {
         const user = row.original;
-        function setCurrentUserData(arg0: {
-          id: string;
-          full_name: string;
-          email: string;
-          user_name: string;
-        }) {
-          throw new Error("Function not implemented.");
-        }
-
         return (
-          <div className="flex items-center space-x-1.5">
+          <div className="flex space-x-1.5 items-center">
             <Badge
-              variant="outline"
-              className="cursor-pointer bg-green-500 text-white"
+              className="cursor-pointer"
               onClick={() => {
-                setCurrentUserData({
-                  id: user?.id,
-                  full_name: user?.full_name,
-                  email: user?.email,
-                  user_name: user?.user_name,
-                });
+                setSelectedUser(user);
+                setIsEditOpen(true);
               }}
-              // onClick={() => useUserEditModal.getState().open(user.id)}
             >
-              <Pen />
-              Edit
+              <Pen className="mr-1 w-4 h-4" /> Edit
             </Badge>
-
             <Badge
-              className="bg-red-500 text-white hover:bg-red-600 cursor-pointer"
+              variant="destructive"
+              className="cursor-pointer"
               onClick={() => {
-                if (confirm(`Are you sure to delete "${user.full_name}"?`)) {
+                if (window.confirm("Are you sure to delete this user?")) {
                   deleteUser(user.id);
                 }
               }}
             >
-              <Trash className="mr-1 h-4 w-4" /> Delete
+              <Trash className="mr-1 w-4 h-4" /> Delete
             </Badge>
           </div>
         );
@@ -235,14 +246,14 @@ const UsersTable = () => {
     data: data?.data || [],
     columns,
     pageCount: data?.meta ? Math.ceil(data.meta.total / data.meta.limit) : -1,
-    getCoreRowModel: getCoreRowModel(),
-    manualPagination: true,
-    manualSorting: true,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+    manualSorting: true,
     state: {
       sorting,
       columnFilters,
@@ -253,27 +264,79 @@ const UsersTable = () => {
   });
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <UserStatusAlertDialog
-        onConfirm={(id, status) => updateUserStatus({ id, status })}
-        isLoading={isUpdating}
+        onConfirm={(userId, newStatus) =>
+          updateUserStatus({ id: userId, status: newStatus })
+        }
+        isLoading={false}
       />
 
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Dashboard</h2>
+      {isEditOpen && selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+          <div className="bg-white p-6 rounded-md shadow-md w-full max-w-md space-y-4">
+            <h2 className="text-xl font-semibold">Edit User</h2>
+            <div className="space-y-2">
+              <Input
+                placeholder="Full Name"
+                value={selectedUser.full_name}
+                onChange={(e) =>
+                  setSelectedUser({
+                    ...selectedUser,
+                    full_name: e.target.value,
+                  })
+                }
+              />
+              <Input
+                placeholder="Username"
+                value={selectedUser.user_name}
+                onChange={(e) =>
+                  setSelectedUser({
+                    ...selectedUser,
+                    user_name: e.target.value,
+                  })
+                }
+              />
+              <Input
+                placeholder="Email"
+                value={selectedUser.email}
+                onChange={(e) =>
+                  setSelectedUser({
+                    ...selectedUser,
+                    email: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => handleUpdateUser(selectedUser)}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                Save
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between space-y-2">
+        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
       </div>
 
-      <div>
+      <div className="space-y-4">
         <div className="flex items-center py-4">
           <Input
             placeholder="Filter emails..."
             value={(table.getColumn("email")?.getFilterValue() as string) ?? ""}
-            onChange={(e) =>
-              table.getColumn("email")?.setFilterValue(e.target.value)
+            onChange={(event) =>
+              table.getColumn("email")?.setFilterValue(event.target.value)
             }
             className="max-w-sm"
           />
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="ml-auto">
@@ -284,25 +347,27 @@ const UsersTable = () => {
               {table
                 .getAllColumns()
                 .filter((col) => col.getCanHide())
-                .map((col) => (
+                .map((column) => (
                   <DropdownMenuCheckboxItem
-                    key={col.id}
-                    checked={col.getIsVisible()}
-                    onCheckedChange={(val) => col.toggleVisibility(!!val)}
+                    key={column.id}
+                    checked={column.getIsVisible()}
+                    onCheckedChange={(value) =>
+                      column.toggleVisibility(!!value)
+                    }
                   >
-                    {col.id}
+                    {column.id}
                   </DropdownMenuCheckboxItem>
                 ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
-        <div className="border rounded">
+        <div className="rounded-md border">
           <Table>
             <TableHeader>
-              {table.getHeaderGroups().map((group) => (
-                <TableRow key={group.id}>
-                  {group.headers.map((header) => (
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
                     <TableHead key={header.id}>
                       {header.isPlaceholder
                         ? null
@@ -320,14 +385,17 @@ const UsersTable = () => {
                 <TableRow>
                   <TableCell
                     colSpan={columns.length}
-                    className="text-center py-8"
+                    className="h-24 text-center"
                   >
                     Loading...
                   </TableCell>
                 </TableRow>
-              ) : table.getRowModel().rows.length ? (
+              ) : table.getRowModel().rows?.length ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && "selected"}
+                  >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
                         {flexRender(
@@ -342,9 +410,9 @@ const UsersTable = () => {
                 <TableRow>
                   <TableCell
                     colSpan={columns.length}
-                    className="text-center py-8"
+                    className="h-24 text-center"
                   >
-                    No users found.
+                    No results.
                   </TableCell>
                 </TableRow>
               )}
@@ -352,14 +420,34 @@ const UsersTable = () => {
           </Table>
         </div>
 
-        <div className="flex justify-between items-center mt-4">
-          <Pagination
-            currentPage={table.getState().pagination.pageIndex + 1}
-            totalPages={table.getPageCount()}
-            onPageChange={(page) => table.setPageIndex(page - 1)}
-          />
-          <div className="text-sm text-muted-foreground">
-            Page {data?.meta?.page || 1} of {table.getPageCount()}
+        <div className="flex items-center justify-between py-4">
+          <div className="text-muted-foreground text-sm">
+            {table.getFilteredSelectedRowModel().rows.length} of{" "}
+            {data?.meta?.total || 0} row(s) selected.
+          </div>
+          <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-2">
+              <p className="text-sm font-medium">Rows per page</p>
+              <select
+                value={table.getState().pagination.pageSize}
+                onChange={(e) => table.setPageSize(Number(e.target.value))}
+                className="h-8 w-[70px] rounded border px-3 py-1 text-sm"
+              >
+                {[5, 10, 20, 30, 40, 50].map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Pagination
+              currentPage={table.getState().pagination.pageIndex + 1}
+              totalPages={table.getPageCount()}
+              onPageChange={(page) => table.setPageIndex(page - 1)}
+            />
+            <div className="text-sm text-muted-foreground">
+              Page {data?.meta?.page || 1} of {table.getPageCount()}
+            </div>
           </div>
         </div>
       </div>
